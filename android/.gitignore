@@ -1,14 +1,29 @@
-gradle-wrapper.jar
-/.gradle
-/captures/
-/gradlew
-/gradlew.bat
-/local.properties
-GeneratedPluginRegistrant.java
-.cxx/
+# --- Flutter / Dart build artifacts ---
+.dart_tool/
+.packages
+.pub-cache/
+build/
+flutter_*.log
 
-# Remember to never publicly share your keystore.
-# See https://flutter.dev/to/reference-keystore
-key.properties
-**/*.keystore
-**/*.jks
+# --- iOS (if you ever build there) ---
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/.generated/
+ios/build/
+
+# --- Editor / OS files ---
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- Keys / certificates ---
+*.pem
+*.p12
+*.key
+
+# --- Optional local APKs / test releases ---
+# Uncomment this line if you don’t want to commit APKs into git
+# /releases/
