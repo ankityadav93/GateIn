@@ -1,18 +1,25 @@
 import 'package:flutter/material.dart';
 import '../services/storage_service.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import '../utils/update_service.dart';
+
 
 class CredentialsSettingsPage extends StatefulWidget {
   final StorageService storageService;
+
   const CredentialsSettingsPage({required this.storageService, super.key});
-  
+
   @override
-  State<CredentialsSettingsPage> createState() => _CredentialsSettingsPageState();
+  State<CredentialsSettingsPage> createState() =>
+      _CredentialsSettingsPageState();
 }
 
 class _CredentialsSettingsPageState extends State<CredentialsSettingsPage> {
   Map<String, String> _accounts = {};
   bool _loading = true;
   String? _defaultUser;
+  String _appVersion = '';
+
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _uCtrl = TextEditingController();
   final TextEditingController _pCtrl = TextEditingController();
@@ -21,6 +28,12 @@ class _CredentialsSettingsPageState extends State<CredentialsSettingsPage> {
   void initState() {
     super.initState();
     _loadAccounts();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    setState(() => _appVersion = info.version);
   }
 
   Future<void> _loadAccounts() async {
@@ -54,8 +67,14 @@ class _CredentialsSettingsPageState extends State<CredentialsSettingsPage> {
         title: const Text('Delete Account'),
         content: Text("Are you sure you want to delete '$user'?"),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );
@@ -90,22 +109,29 @@ class _CredentialsSettingsPageState extends State<CredentialsSettingsPage> {
         title: Text(isAddingNew ? 'Add Credentials' : 'Edit Credentials'),
         content: Form(
           key: _formKey,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextFormField(
-              controller: _uCtrl,
-              decoration: const InputDecoration(labelText: 'Username'),
-              validator: (v) => (v ?? '').trim().isEmpty ? 'Enter username' : null,
-            ),
-            TextFormField(
-              controller: _pCtrl,
-              decoration: const InputDecoration(labelText: 'Password'),
-              obscureText: true,
-              validator: (v) => (v ?? '').isEmpty ? 'Enter password' : null,
-            ),
-          ]),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _uCtrl,
+                decoration: const InputDecoration(labelText: 'Username'),
+                validator: (v) =>
+                    (v ?? '').trim().isEmpty ? 'Enter username' : null,
+              ),
+              TextFormField(
+                controller: _pCtrl,
+                decoration: const InputDecoration(labelText: 'Password'),
+                obscureText: true,
+                validator: (v) => (v ?? '').isEmpty ? 'Enter password' : null,
+              ),
+            ],
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () {
               if (_formKey.currentState!.validate()) Navigator.pop(ctx, true);
@@ -119,12 +145,15 @@ class _CredentialsSettingsPageState extends State<CredentialsSettingsPage> {
     if (res == true) {
       final newUser = _uCtrl.text.trim();
       final newPass = _pCtrl.text;
+
       if (newUser.isEmpty) return;
 
       if (!isAddingNew && user != newUser) _accounts.remove(user);
       _accounts[newUser] = newPass;
 
-      if (wasEmptyBefore || _defaultUser == user || (_defaultUser == null && isAddingNew)) {
+      if (wasEmptyBefore ||
+          _defaultUser == user ||
+          (_defaultUser == null && isAddingNew)) {
         await _setAsDefault(newUser);
       } else if (_defaultUser == user && user != newUser) {
         await _setAsDefault(newUser);
@@ -161,113 +190,140 @@ class _CredentialsSettingsPageState extends State<CredentialsSettingsPage> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _accounts.isEmpty
-              ? const Center(child: Text('No saved accounts'))
-              : ListView.separated(
-                  padding: const EdgeInsets.all(12),
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemCount: _accounts.length,
-                  itemBuilder: (_, i) {
-                    final user = _accounts.keys.elementAt(i);
-                    final isDefault = (user == _defaultUser);
-                    final masked = '*' * (_accounts[user]?.length ?? 6);
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      decoration: BoxDecoration(
-                        color: isDefault
-                            ? const Color.fromARGB(255, 30, 255, 49)
-                            : Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isDefault
-                              ? const Color.fromARGB(255, 118, 187, 124)
-                              : Colors.grey.shade300,
-                          width: isDefault ? 2 : 1,
-                        ),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 3,
-                            offset: Offset(1, 1),
-                            ),
-                        ],
-                      ),
-                      child: Stack(children: [
-                        ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          title: Text(
-                            user,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 15,
-                              color: Colors.black,
-                            ),
-                          ),
-                          subtitle: Text(masked),
-                          trailing: PopupMenuButton<String>(
-                            onSelected: (v) async {
-                              switch (v) {
-                                case 'use':
-                                  await _setAsDefault(user);
-                                  break;
-                                case 'edit':
-                                  await _editAccount(user);
-                                  break;
-                                case 'delete':
-                                  await _deleteAccount(user);
-                                  break;
-                              }
-                            },
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(
-                                value: 'use',
-                                child: Text('Set as Default'),
-                              ),
-                              PopupMenuItem(
-                                value: 'edit',
-                                child: Text('Edit'),
-                              ),
-                              PopupMenuItem(
-                                value: 'delete',
-                                child: Text('Delete'),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (isDefault)
-                          Positioned(
-                            left: 0,
-                            top: 0,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: const BoxDecoration(
-                                color: Colors.green,
-                                borderRadius: BorderRadius.only(
-                                  topLeft: Radius.circular(6),
-                                  bottomRight: Radius.circular(6),
+          : Column(
+              children: [
+                Expanded(
+                  child: _accounts.isEmpty
+                      ? const Center(child: Text('No saved accounts'))
+                      : ListView.separated(
+                          padding: const EdgeInsets.all(12),
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 10),
+                          itemCount: _accounts.length,
+                          itemBuilder: (_, i) {
+                            final user = _accounts.keys.elementAt(i);
+                            final isDefault = (user == _defaultUser);
+                            final masked =
+                                '*' * (_accounts[user]?.length ?? 6);
+
+                            return AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                              decoration: BoxDecoration(
+                                gradient: isDefault
+                                    ? const LinearGradient(
+                                        colors: [
+                                          Color.fromARGB(255, 216, 218, 221),
+                                          Color.fromARGB(255, 134, 134, 143),
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      )
+                                    : null,
+                                color: isDefault ? null : Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: isDefault
+                                      ? Color.fromARGB(255, 168, 172, 168)
+                                      : Colors.grey.shade300,
+                                  width: isDefault ? 2.5 : 1.5,
                                 ),
                               ),
-                              child: const Text(
-                                'Default',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.5,
-                                ),
+                              child: Stack(
+                                children: [
+                                  ListTile(
+                                    contentPadding:
+                                        const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 8,
+                                    ),
+                                    title: Text(
+                                      user,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 15,
+                                        color: Colors.black,
+                                      ),
+                                    ),
+                                    subtitle: Text(masked),
+                                    trailing: PopupMenuButton<String>(
+                                      onSelected: (v) async {
+                                        switch (v) {
+                                          case 'use':
+                                            await _setAsDefault(user);
+                                            break;
+                                          case 'edit':
+                                            await _editAccount(user);
+                                            break;
+                                          case 'delete':
+                                            await _deleteAccount(user);
+                                            break;
+                                        }
+                                      },
+                                      itemBuilder: (_) => const [
+                                        PopupMenuItem(
+                                          value: 'use',
+                                          child: Text('Set as Default'),
+                                        ),
+                                        PopupMenuItem(
+                                          value: 'edit',
+                                          child: Text('Edit'),
+                                        ),
+                                        PopupMenuItem(
+                                          value: 'delete',
+                                          child: Text('Delete'),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (isDefault)
+                                    Positioned(
+                                      left: 0,
+                                      top: 0,
+                                      child: Container(
+                                        padding:
+                                            const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: const BoxDecoration(
+                                          color: Color.fromARGB(255, 168, 172, 168),
+                                          borderRadius: BorderRadius.only(
+                                            topLeft: Radius.circular(7),
+                                            bottomRight: Radius.circular(6),
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          'Default',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
-                            ),
-                          ),
-                      ]),
-                    );
-                  },
+                            );
+                          },
+                        ),
                 ),
+
+                // VERSION AT BOTTOM
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    "Version $_appVersion",
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }

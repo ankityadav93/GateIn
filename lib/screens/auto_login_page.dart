@@ -9,11 +9,7 @@ import '../services/network_service.dart';
 import '../utils/javascript_injector.dart';
 import '../utils/constants.dart';
 import 'credentials_settings_page.dart';
-
-// Added for OTA Update
-import 'package:http/http.dart' as http;
-import 'package:ota_update/ota_update.dart';
-import 'package:package_info_plus/package_info_plus.dart';
+import '../utils/update_service.dart';
 
 class AutoLoginPage extends StatefulWidget {
   const AutoLoginPage({super.key});
@@ -91,6 +87,7 @@ class _AutoLoginPageState extends State<AutoLoginPage> with WidgetsBindingObserv
     });
 
     await _injectEarlyScaling();
+
     Future.delayed(AppConstants.pageLoadDelay, () {
       if (mounted) setState(() => _readyToShow = true);
     });
@@ -109,84 +106,7 @@ class _AutoLoginPageState extends State<AutoLoginPage> with WidgetsBindingObserv
         onWebResourceError: (_) {},
       ),
     );
-
- 
-    _checkForUpdate(); // Check for updates after initialization
   }
-
-  //OTA UPDATE SYSTEM START
-
-  Future<void> _checkForUpdate() async {
-    try {
-      final response = await http.get(
-        Uri.parse('https://raw.githubusercontent.com/ankityadav93/gatein/main/update.json'),
-      );
-
-      if (response.statusCode != 200) return;
-      final data = jsonDecode(response.body);
-      final latest = data['latest_version'];
-      final apkUrl = data['apk_url'];
-      final changelog = data['changelog'] ?? '';
-
-      final info = await PackageInfo.fromPlatform();
-      final current = info.version;
-
-      if (latest != null && latest != current) {
-        if (!mounted) return;
-        final action = await showDialog<String>(
-          context: context,
-          barrierDismissible: false,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Update Available'),
-            content: Text(
-              'New version $latest is available.\n\nChanges:\n$changelog',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, 'later'),
-                child: const Text('Later'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, 'update'),
-                child: const Text('Download & Install'),
-              ),
-            ],
-          ),
-        );
-
-        if (action == 'update') {
-          await _startOtaUpdate(apkUrl);
-        }
-      }
-    } catch (e) {
-      debugPrint('Update check failed: $e');
-    }
-  }
-
-  Future<void> _startOtaUpdate(String apkUrl) async {
-    try {
-      await for (final event in OtaUpdate().execute(
-        apkUrl,
-        destinationFilename: 'GateIn_latest.apk',
-      )) {
-        if (event.status == OtaStatus.DOWNLOADING) {
-          debugPrint('Downloading: ${event.value}%');
-        } else if (event.status == OtaStatus.INSTALLING) {
-          debugPrint('Installing update...');
-        } else if (event.status == OtaStatus.PERMISSION_NOT_GRANTED_ERROR) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Install permission denied')),
-            );
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('OTA update error: $e');
-    }
-  }
-
-  // ↑↑↑ OTA UPDATE SYSTEM END ↑↑↑
 
   Future<void> _injectEarlyScaling() async {
     final double deviceWidth = MediaQuery.of(context).size.width;
@@ -224,9 +144,8 @@ class _AutoLoginPageState extends State<AutoLoginPage> with WidgetsBindingObserv
   }
 
   Future<void> _attemptAutoFillOnce() async {
-    if (_hasAttemptedAutoFill) {
-      return;
-    }
+    if (_hasAttemptedAutoFill) return;
+
     try {
       if (_username == null || _password == null) {
         if (!_hasAttemptedCapture) {
@@ -253,7 +172,6 @@ class _AutoLoginPageState extends State<AutoLoginPage> with WidgetsBindingObserv
           await _captureCredentialsFromForm();
           _hasAttemptedCapture = true;
         }
-
         _hasAttemptedAutoFill = true;
         await _autoFillAndSubmit();
       }
@@ -335,7 +253,9 @@ class _AutoLoginPageState extends State<AutoLoginPage> with WidgetsBindingObserv
           (currentUrl.toLowerCase().contains("keepalive"));
 
       if (!isSuccessPage) return;
-      _checkForUpdate();
+
+      final svc = UpdateService(context);
+      svc.checkAndPrompt(); // auto-check without showing "Up to date" popup
 
       if (_username == null || _password == null) {
         final Object? storedCreds = await _controller.runJavaScriptReturningResult('''
@@ -410,8 +330,8 @@ class _AutoLoginPageState extends State<AutoLoginPage> with WidgetsBindingObserv
             storageEmpty
                 ? "Save login for '$user' (will be set as default)?"
                 : (!exists
-                    ? "Save new account '$user'?"
-                    : "Update saved password for '$user'?"),
+                ? "Save new account '$user'?"
+                : "Update saved password for '$user'?"),
           ),
           actions: [
             TextButton(
@@ -472,8 +392,11 @@ class _AutoLoginPageState extends State<AutoLoginPage> with WidgetsBindingObserv
           ),
           IconButton(
             icon: const Icon(Icons.system_update),
-            tooltip: 'Check for Updates',
-            onPressed: _checkForUpdate,
+            tooltip: "Check for Updates",
+            onPressed: () async {
+              final svc = UpdateService(context);
+              await svc.checkAndPrompt(showIfUpToDate: true);
+            },
           ),
           IconButton(
             icon: const Icon(Icons.settings),

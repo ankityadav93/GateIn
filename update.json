@@ -1,5 +1,5 @@
 {
-  "latest_version": "1.0.1",
-  "apk_url": "https://github.com/ankityadav93/GateIn/releases/download/v1.0.1/GateIn.v1.0.1.apk",
-  "changelog": "Version 1.0.1 — Stable Update\n\n• Added 'Check for Updates' option (manual OTA trigger)\n• OTA update check now runs automatically after login\n• Prevents unnecessary credential injection when reopening app\n• Improved login stability and performance\n• Secure credential storage retained across updates"
+  "latest_version": "1.0.3",
+  "apk_url": "https://github.com/ankityadav93/GateIn/releases/download/v1.0.3/GateIn_v1.0.3.apk",
+  "changelog": "🔥 New Update (v1.0.3)\n\n• Faster login stability\n• Added manual Update button\n• UI improvements\n• Bug fixes and performance enhancement"
 }
